@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: gunas-craft-catalog
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/catalog
+    disk:
+      name: gunas-craft-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_SESSION_SECRET
+        generateValue: true
+      - key: MAX_CATALOG_PAGES
+        value: 40
+      - key: STORAGE_PROVIDER
+        value: local
+      - key: CATALOG_BACKEND
+        value: local
+      - key: DATA_DIR
+        value: /var/data/catalog
+      - key: UPLOAD_DIR
+        value: /var/data/uploads

@@ -12,12 +12,16 @@ const sharp = require("sharp");
 const { v2: cloudinary } = require("cloudinary");
 
 const ROOT = __dirname;
-const DATA_DIR = path.join(ROOT, "data");
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(ROOT, "data");
 const CATALOG_PATH = path.join(DATA_DIR, "catalog.json");
-const UPLOAD_DIR = path.join(ROOT, "assets", "uploads");
-const TMP_DIR = process.env.VERCEL
+const UPLOAD_DIR = process.env.UPLOAD_DIR
+  ? path.resolve(process.env.UPLOAD_DIR)
+  : path.join(ROOT, "assets", "uploads");
+const TMP_DIR = process.env.TMP_DIR || (process.env.VERCEL || process.env.RENDER
   ? path.join(os.tmpdir(), "gunas-flip")
-  : path.join(ROOT, "tmp");
+  : path.join(ROOT, "tmp"));
 const PORT = Number(process.env.PORT || 4174);
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
@@ -91,6 +95,10 @@ let catalogQueue = Promise.resolve();
 const eventClients = new Set();
 
 function toWebPath(filePath) {
+  const uploadRelativePath = path.relative(UPLOAD_DIR, filePath);
+  if (uploadRelativePath && !uploadRelativePath.startsWith("..") && !path.isAbsolute(uploadRelativePath)) {
+    return ["assets", "uploads", ...uploadRelativePath.split(path.sep)].join("/");
+  }
   return path.relative(ROOT, filePath).split(path.sep).join("/");
 }
 
@@ -438,7 +446,8 @@ async function deleteStoredAsset(page) {
     return;
   }
   if (page.storageProvider === "local" && page.src && page.src.startsWith("assets/uploads/")) {
-    const filePath = path.join(ROOT, page.src);
+    const uploadRelativePath = page.src.replace(/^assets\/uploads\//, "").split("/").join(path.sep);
+    const filePath = path.join(UPLOAD_DIR, uploadRelativePath);
     await fsp.unlink(filePath).catch(() => {});
   }
 }
@@ -563,6 +572,11 @@ function asyncHandler(handler) {
 app.get(["/admin", "/admin.html"], (req, res) => {
   res.sendFile(path.join(ROOT, "admin.html"));
 });
+
+app.use("/assets/uploads", express.static(UPLOAD_DIR, {
+  etag: false,
+  maxAge: 0
+}));
 
 app.use(express.static(ROOT, {
   extensions: ["html"],

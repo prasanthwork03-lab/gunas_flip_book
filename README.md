@@ -20,6 +20,16 @@ Production-ready flipbook catalog with a simple admin panel.
 
 ## Production Storage
 
+For Render production, this repo includes `render.yaml` with a persistent disk mounted at `/var/data`.
+Admin uploads and catalog order are saved here:
+
+```text
+DATA_DIR=/var/data/catalog
+UPLOAD_DIR=/var/data/uploads
+```
+
+This is required because normal hosted app files are not reliable for permanent admin uploads.
+
 For Vercel production, use Cloudinary. This is required because Vercel serverless functions do not keep local uploads or JSON changes permanently.
 
 Set these Vercel environment variables:
@@ -41,9 +51,24 @@ CLOUDINARY_MANIFEST_PUBLIC_ID=gunas-craft/catalog/catalog-manifest.json
 
 ## Deploy
 
+### Render
+
+1. Push this folder to GitHub.
+2. In Render, create a new Blueprint from the GitHub repository.
+3. Render reads `render.yaml` and creates a Node web service with a persistent disk.
+4. Add the `ADMIN_PASSWORD` value when Render asks for the unsynced secret.
+5. Deploy production.
+
+After deployment:
+
+- Admin URL: `https://your-render-service.onrender.com/admin.html`
+- Public catalog: `https://your-render-service.onrender.com/index.html`
+
+### Vercel
+
 1. Push this folder to GitHub.
 2. Import the GitHub repository in Vercel.
-3. Add the environment variables above in Vercel Project Settings.
+3. Add the Cloudinary environment variables above in Vercel Project Settings.
 4. Deploy production.
 
 After deployment:
