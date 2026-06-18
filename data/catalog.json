@@ -1,0 +1,207 @@
+{
+  "version": 1781802440056,
+  "updatedAt": "2026-06-18T17:07:20.056Z",
+  "storageProvider": "local",
+  "pages": [
+    {
+      "id": "seed_1",
+      "src": "assets/pages/page-01.jpg",
+      "label": "Cover - Guna's Craft",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-01.jpg",
+      "createdAt": "2026-06-18T16:32:42.169Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_2",
+      "src": "assets/pages/page-02.jpg",
+      "label": "About the Artist",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-02.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_3",
+      "src": "assets/pages/page-03.jpg",
+      "label": "Sacred Strips of Devotion",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-03.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_4",
+      "src": "assets/pages/page-04.jpg",
+      "label": "Crimson Sentinel",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-04.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_5",
+      "src": "assets/pages/page-05.jpg",
+      "label": "Silent Majesty",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-05.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_6",
+      "src": "assets/pages/page-06.jpg",
+      "label": "The Royal Plume",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-06.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_7",
+      "src": "assets/pages/page-07.jpg",
+      "label": "Strength in Stillness",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-07.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_8",
+      "src": "assets/pages/page-08.jpg",
+      "label": "A Portrait of Strength",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-08.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_9",
+      "src": "assets/pages/page-09.jpg",
+      "label": "Symphony of Nature",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-09.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_10",
+      "src": "assets/pages/page-10.jpg",
+      "label": "Peckaboo Puppy, Tropical Dream and Peacock Pride",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-10.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_11",
+      "src": "assets/pages/page-11.jpg",
+      "label": "Radiant Rooster, Moonlit Ember and Festive Grace",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-11.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_12",
+      "src": "assets/pages/page-12.jpg",
+      "label": "Hidden Melody, Soul Tree and Golden Cockerel",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-12.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_13",
+      "src": "assets/pages/page-13.jpg",
+      "label": "Violet Serenade, Sapphire Dream and Sunburst Bird",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-13.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_14",
+      "src": "assets/pages/page-14.jpg",
+      "label": "Divine Art",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-14.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_15",
+      "src": "assets/pages/page-15.jpg",
+      "label": "Art Made with Devotion Brings Blessings to Every Home",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-15.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_16",
+      "src": "assets/pages/page-16.jpg",
+      "label": "Customized Gifts and Name Boards",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-16.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_17",
+      "src": "assets/pages/page-17.jpg",
+      "label": "Spiritual Collection",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-17.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_18",
+      "src": "assets/pages/page-18.jpg",
+      "label": "Miniature and Table-top Gifts",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-18.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_19",
+      "src": "assets/pages/page-19.jpg",
+      "label": "Awards and Recognitions",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-19.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    },
+    {
+      "id": "seed_20",
+      "src": "assets/pages/page-20.jpg",
+      "label": "Get in Touch",
+      "source": "seed",
+      "storageProvider": "local",
+      "originalName": "page-20.jpg",
+      "createdAt": "2026-06-18T16:32:42.171Z",
+      "updatedAt": "2026-06-18T16:32:42.171Z"
+    }
+  ]
+}

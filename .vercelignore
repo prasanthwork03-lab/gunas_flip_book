@@ -1,0 +1,7 @@
+node_modules/
+.vercel/
+tmp/
+assets/uploads/
+.env
+.env.*
+index.original.html

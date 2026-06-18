@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gunas Craft Admin</title>
+<style>
+  :root {
+    --ink: #24180f;
+    --muted: #77634b;
+    --gold: #c99b36;
+    --gold-soft: #eedda8;
+    --paper: #fffdf8;
+    --line: rgba(36, 24, 15, 0.14);
+    --shadow: 0 18px 54px rgba(28, 18, 10, 0.12);
+    --success: #2f6d4f;
+    --danger: #b64040;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 15% 0%, rgba(201, 155, 54, 0.15), transparent 28rem),
+      linear-gradient(180deg, #fffdf9, #f8f5ed);
+    font-family: Arial, sans-serif;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+
+  button,
+  input,
+  textarea {
+    font: inherit;
+  }
+
+  button {
+    border: 1px solid rgba(201, 155, 54, 0.42);
+    border-radius: 999px;
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.86);
+    cursor: pointer;
+    transition: transform 150ms ease, border-color 150ms ease, background 150ms ease, opacity 150ms ease;
+  }
+
+  button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: var(--gold);
+    background: #fff8e8;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+  }
+
+  .shell {
+    width: min(1420px, 100%);
+    margin: 0 auto;
+    padding: 18px;
+  }
+
+  .login-screen {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+  }
+
+  .login-card {
+    width: min(420px, 100%);
+    padding: 24px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: var(--shadow);
+  }
+
+  .login-mark {
+    display: grid;
+    width: 70px;
+    height: 70px;
+    margin: 0 auto 14px;
+    place-items: center;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at center, #fffdf8 0 22%, transparent 23%),
+      conic-gradient(#f7941d, #c99b36, #24456e, #bb405c, #f7941d);
+    box-shadow: inset 0 0 0 10px rgba(255, 253, 248, 0.92), 0 10px 24px rgba(28, 18, 10, 0.12);
+  }
+
+  .login-card h1 {
+    margin: 0;
+    font: 28px/1.1 Georgia, "Times New Roman", serif;
+    text-align: center;
+  }
+
+  .login-card p {
+    margin: 8px 0 18px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .login-form {
+    display: grid;
+    gap: 12px;
+  }
+
+  .login-error {
+    min-height: 20px;
+    color: var(--danger);
+    font-size: 13px;
+    text-align: center;
+  }
+
+  .admin-header {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 14px;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .title h1 {
+    margin: 0;
+    font: 32px/1.1 Georgia, "Times New Roman", serif;
+    letter-spacing: 0.03em;
+  }
+
+  .title p {
+    margin: 6px 0 0;
+    color: var(--muted);
+  }
+
+  .status {
+    min-width: min(420px, 90vw);
+    padding: 10px 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.72);
+    box-shadow: 0 6px 20px rgba(28, 18, 10, 0.05);
+    text-align: right;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(320px, 0.9fr) minmax(420px, 1.1fr);
+    gap: 16px;
+  }
+
+  .panel {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: var(--shadow);
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .panel-header h2,
+  .section-title {
+    margin: 0;
+    font: 20px/1.2 Georgia, "Times New Roman", serif;
+  }
+
+  .panel-body {
+    padding: 16px;
+  }
+
+  .stack {
+    display: grid;
+    gap: 14px;
+  }
+
+  .dropzone {
+    display: grid;
+    min-height: 142px;
+    place-items: center;
+    gap: 10px;
+    padding: 18px;
+    border: 2px dashed rgba(201, 155, 54, 0.45);
+    border-radius: 14px;
+    background:
+      radial-gradient(circle at 18% 25%, rgba(247, 148, 29, 0.14), transparent 72px),
+      radial-gradient(circle at 82% 70%, rgba(36, 69, 110, 0.1), transparent 78px),
+      #fffdf8;
+    text-align: center;
+  }
+
+  .dropzone.dragover {
+    border-color: var(--gold);
+    background: #fff6dc;
+  }
+
+  .coil {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at center, #fffdf8 0 20%, transparent 21%),
+      conic-gradient(#f7941d, #c99b36, #24456e, #bb405c, #f7941d);
+    box-shadow: inset 0 0 0 8px rgba(255, 253, 248, 0.9), 0 8px 20px rgba(28, 18, 10, 0.12);
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .primary {
+    color: #fffaf0;
+    border-color: #24456e;
+    background: #24456e;
+  }
+
+  .danger {
+    color: #fff;
+    border-color: var(--danger);
+    background: var(--danger);
+  }
+
+  .field {
+    display: grid;
+    gap: 7px;
+  }
+
+  .field label {
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .input,
+  textarea {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--ink);
+    background: #fff;
+    outline: none;
+  }
+
+  .input {
+    height: 40px;
+    padding: 0 12px;
+  }
+
+  textarea {
+    min-height: 126px;
+    padding: 12px;
+    resize: vertical;
+  }
+
+  .hint {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .url-previews {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 8px;
+  }
+
+  .url-previews figure {
+    margin: 0;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #f2eee4;
+  }
+
+  .url-previews img {
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    display: block;
+    object-fit: cover;
+  }
+
+  .url-previews figcaption {
+    padding: 5px;
+    color: var(--muted);
+    font-size: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .preview-frame {
+    width: 100%;
+    min-height: 520px;
+    border: 0;
+    border-radius: 0 0 14px 14px;
+    background: #fff;
+  }
+
+  .manager {
+    margin-top: 16px;
+  }
+
+  .page-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+
+  .page-card {
+    display: grid;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.9);
+  }
+
+  .page-card.dragging {
+    opacity: 0.48;
+  }
+
+  .page-card.drop-target {
+    outline: 2px solid var(--gold);
+  }
+
+  .page-thumb {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    background: #f4efe3;
+  }
+
+  .page-thumb img {
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    display: block;
+    object-fit: cover;
+  }
+
+  .badge {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    min-width: 28px;
+    padding: 4px 7px;
+    border-radius: 999px;
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.9);
+    font-size: 12px;
+    text-align: center;
+  }
+
+  .page-card input[type="text"] {
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: #fff;
+  }
+
+  .mini-actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  .mini-actions.two {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .mini-actions button {
+    min-height: 32px;
+    padding: 0 6px;
+    font-size: 12px;
+  }
+
+  .meta {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  @media (max-width: 980px) {
+    .admin-header,
+    .grid {
+      grid-template-columns: 1fr;
+    }
+
+    .status {
+      text-align: left;
+    }
+  }
+</style>
+</head>
+<body>
+  <section class="login-screen" id="login-screen">
+    <form class="login-card login-form" id="login-form">
+      <div class="login-mark" aria-hidden="true"></div>
+      <h1>Gunas Craft Admin</h1>
+      <p>Login to update the flipbook catalog.</p>
+      <div class="field">
+        <label for="login-username">Username</label>
+        <input class="input" id="login-username" name="username" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="login-password">Password</label>
+        <input class="input" id="login-password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="primary" id="login-submit" type="submit">Login</button>
+      <div class="login-error" id="login-error" role="alert"></div>
+    </form>
+  </section>
+
+  <div class="shell" id="admin-app" hidden>
+    <header class="admin-header">
+      <div class="title">
+        <h1>Gunas Craft Admin</h1>
+        <p>Upload images, import URL images, and arrange the flipbook sequence.</p>
+      </div>
+      <div class="status" id="status">Connecting to catalog...</div>
+      <div class="actions">
+        <button id="logout-btn" type="button">Logout</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Catalog Management</h2>
+          <button class="primary" id="publish-btn" type="button">Publish / Sync</button>
+        </div>
+        <div class="panel-body stack">
+          <div class="dropzone" id="dropzone">
+            <div class="coil" aria-hidden="true"></div>
+            <div>
+              <strong>Upload catalog images</strong>
+              <p class="hint">Drop or choose JPG, PNG, WEBP, or AVIF images. Maximum 40 catalog pages.</p>
+            </div>
+            <div class="actions">
+              <button class="primary" id="pick-images" type="button">Choose Images</button>
+              <input id="image-input" type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple hidden>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="url-input">Image URL import</label>
+            <textarea id="url-input" placeholder="https://example.com/page1.jpg&#10;https://example.com/page2.webp&#10;https://example.com/page3.png"></textarea>
+            <div class="actions">
+              <button id="preview-urls" type="button">Preview URLs</button>
+              <button class="primary" id="import-urls" type="button">Import URLs</button>
+            </div>
+            <p class="hint">Supports public JPG, JPEG, PNG, WEBP, and AVIF URLs from Cloudinary, S3, ImageKit, Bunny, or any public image host.</p>
+            <div class="url-previews" id="url-previews"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Live Public Preview</h2>
+          <div class="actions">
+            <button id="refresh-preview" type="button">Refresh Preview</button>
+            <a href="index.html" target="_blank"><button type="button">Open Flipbook</button></a>
+          </div>
+        </div>
+        <iframe class="preview-frame" id="preview-frame" src="index.html?adminPreview=1" title="Public flipbook preview"></iframe>
+      </section>
+    </div>
+
+    <section class="panel manager">
+      <div class="panel-header">
+        <div>
+          <h2>Page Sequence</h2>
+          <p class="hint" id="page-count">Loading pages...</p>
+        </div>
+        <div class="actions">
+          <button id="reload-catalog" type="button">Reload</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="page-grid" id="page-grid"></div>
+      </div>
+    </section>
+  </div>
+
+<script>
+const state = {
+  pages: [],
+  maxPages: 40,
+  draggedId: null,
+  events: null,
+  pollTimer: null
+};
+
+const loginScreen = document.getElementById("login-screen");
+const adminApp = document.getElementById("admin-app");
+const loginForm = document.getElementById("login-form");
+const loginError = document.getElementById("login-error");
+const loginSubmit = document.getElementById("login-submit");
+const statusEl = document.getElementById("status");
+const pageGrid = document.getElementById("page-grid");
+const pageCount = document.getElementById("page-count");
+const imageInput = document.getElementById("image-input");
+const urlInput = document.getElementById("url-input");
+const urlPreviews = document.getElementById("url-previews");
+const previewFrame = document.getElementById("preview-frame");
+
+function showLogin(message = "") {
+  stopCatalogPolling();
+  adminApp.hidden = true;
+  loginScreen.hidden = false;
+  loginError.textContent = message;
+  document.getElementById("login-username").focus();
+}
+
+function showAdmin() {
+  loginScreen.hidden = true;
+  adminApp.hidden = false;
+  startCatalogPolling();
+}
+
+function setStatus(message, type = "info") {
+  statusEl.textContent = message;
+  statusEl.style.color = type === "error" ? "var(--danger)" : type === "success" ? "var(--success)" : "var(--muted)";
+}
+
+function adminHeaders(extra = {}) {
+  return { ...extra };
+}
+
+async function api(path, options = {}) {
+  const headers = options.body instanceof FormData
+    ? adminHeaders(options.headers || {})
+    : adminHeaders({ "Content-Type": "application/json", ...(options.headers || {}) });
+  const response = await fetch(new URL(path, window.location.origin), { ...options, headers });
+  const text = await response.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { error: text };
+  }
+  if (!response.ok) {
+    throw new Error(data.error || "Request failed");
+  }
+  return data;
+}
+
+async function checkLogin() {
+  try {
+    await api("/api/admin/me", { method: "GET" });
+    showAdmin();
+    await fetchCatalog();
+    connectEvents();
+  } catch {
+    showLogin();
+  }
+}
+
+async function login(username, password) {
+  loginSubmit.disabled = true;
+  loginError.textContent = "";
+  try {
+    await api("/api/admin/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password })
+    });
+    showAdmin();
+    await fetchCatalog();
+    connectEvents();
+    setStatus("Logged in", "success");
+  } catch (error) {
+    showLogin(error.message || "Invalid username or password");
+  } finally {
+    loginSubmit.disabled = false;
+  }
+}
+
+async function logout() {
+  await api("/api/admin/logout", { method: "POST", body: JSON.stringify({}) }).catch(() => {});
+  if (state.events) {
+    state.events.close();
+    state.events = null;
+  }
+  stopCatalogPolling();
+  showLogin("Logged out");
+}
+
+function renderCatalog(catalog) {
+  state.pages = catalog.pages || [];
+  state.maxPages = catalog.maxPages || 40;
+  pageCount.textContent = `${state.pages.length} / ${state.maxPages} pages | Updated ${catalog.updatedAt ? new Date(catalog.updatedAt).toLocaleString() : "now"}`;
+  const full = state.pages.length >= state.maxPages;
+  document.getElementById("pick-images").disabled = full;
+  document.getElementById("import-urls").disabled = full;
+  renderPageGrid();
+}
+
+function renderPageGrid() {
+  pageGrid.innerHTML = "";
+  state.pages.forEach((page, index) => {
+    const card = document.createElement("article");
+    card.className = "page-card";
+    card.draggable = true;
+    card.dataset.id = page.id;
+    card.innerHTML = `
+      <div class="page-thumb">
+        <img src="${page.src}" alt="${page.label || `Page ${index + 1}`}">
+        <span class="badge">${index + 1}</span>
+      </div>
+      <input type="text" value="${escapeHtml(page.label || `Page ${index + 1}`)}" data-action="label" data-id="${page.id}" aria-label="Page label">
+      <div class="mini-actions">
+        <button type="button" data-action="up" data-id="${page.id}">Up</button>
+        <button type="button" data-action="down" data-id="${page.id}">Down</button>
+        <button type="button" data-action="first" data-id="${page.id}">First</button>
+        <button type="button" data-action="last" data-id="${page.id}">Last</button>
+      </div>
+      <div class="mini-actions two">
+        <button type="button" data-action="replace-file" data-id="${page.id}">Replace Image</button>
+        <button class="danger" type="button" data-action="delete" data-id="${page.id}">Delete</button>
+      </div>
+      <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" data-action="replace-file-input" data-id="${page.id}" hidden>
+      <div class="meta">${escapeHtml(page.source || "catalog")} | ${escapeHtml(page.storageProvider || "local")} | ${escapeHtml(page.format || "")}</div>
+    `;
+    pageGrid.appendChild(card);
+  });
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function parseUrls() {
+  return urlInput.value
+    .split(/\r?\n|,/)
+    .map((url) => url.trim())
+    .filter(Boolean);
+}
+
+function previewUrls() {
+  const urls = parseUrls();
+  urlPreviews.innerHTML = "";
+  urls.forEach((url) => {
+    const figure = document.createElement("figure");
+    figure.innerHTML = `<img src="${escapeHtml(url)}" alt=""><figcaption>${escapeHtml(url)}</figcaption>`;
+    urlPreviews.appendChild(figure);
+  });
+  setStatus(`${urls.length} URL previews generated`);
+}
+
+async function fetchCatalog() {
+  const catalog = await api("/api/catalog", { method: "GET" });
+  renderCatalog(catalog);
+  setStatus("Catalog loaded", "success");
+}
+
+async function uploadImages(files) {
+  if (!files.length) return;
+  if (state.pages.length + files.length > state.maxPages) {
+    setStatus(`Maximum ${state.maxPages} pages only. Delete or replace a page before adding more.`, "error");
+    return;
+  }
+  const formData = new FormData();
+  [...files].forEach((file) => formData.append("images", file));
+  setStatus(`Uploading ${files.length} image(s)...`);
+  const data = await api("/api/images/upload", { method: "POST", body: formData });
+  renderCatalog(data.catalog);
+  setStatus(`${data.added.length} image(s) uploaded and published`, "success");
+}
+
+async function importUrls() {
+  const urls = parseUrls();
+  if (!urls.length) {
+    setStatus("Paste at least one image URL", "error");
+    return;
+  }
+  if (state.pages.length + urls.length > state.maxPages) {
+    setStatus(`Maximum ${state.maxPages} pages only. Delete or replace a page before importing more.`, "error");
+    return;
+  }
+  setStatus(`Importing ${urls.length} URL(s)...`);
+  const data = await api("/api/images/import-urls", {
+    method: "POST",
+    body: JSON.stringify({ urls })
+  });
+  renderCatalog(data.catalog);
+  const skipped = data.errors && data.errors.length ? `, ${data.errors.length} skipped` : "";
+  setStatus(`${data.added.length} URL image(s) imported${skipped}`, data.errors && data.errors.length ? "info" : "success");
+}
+
+async function movePage(id, action) {
+  const data = await api(`/api/pages/${id}/move`, {
+    method: "PATCH",
+    body: JSON.stringify({ action })
+  });
+  renderCatalog(data.catalog);
+  setStatus(`Page moved ${action}`, "success");
+}
+
+async function reorderPages(ids) {
+  const data = await api("/api/catalog/reorder", {
+    method: "PATCH",
+    body: JSON.stringify({ ids })
+  });
+  renderCatalog(data.catalog);
+  setStatus("Page order updated", "success");
+}
+
+async function updateLabel(id, label) {
+  const data = await api(`/api/pages/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ label })
+  });
+  renderCatalog(data.catalog);
+  setStatus("Page label saved", "success");
+}
+
+async function replaceWithFile(id, file) {
+  const formData = new FormData();
+  formData.append("image", file);
+  setStatus("Replacing image...");
+  const data = await api(`/api/pages/${id}/replace`, { method: "POST", body: formData });
+  renderCatalog(data.catalog);
+  setStatus("Image replaced and published", "success");
+}
+
+async function deletePage(id) {
+  const page = state.pages.find((item) => item.id === id);
+  if (!confirm(`Delete page "${page ? page.label : id}"?`)) return;
+  const data = await api(`/api/pages/${id}`, { method: "DELETE" });
+  renderCatalog(data.catalog);
+  setStatus("Page deleted and published", "success");
+}
+
+async function publish() {
+  const data = await api("/api/catalog/publish", { method: "POST", body: JSON.stringify({}) });
+  renderCatalog(data.catalog);
+  setStatus("Live flipbook synced", "success");
+}
+
+document.getElementById("pick-images").addEventListener("click", () => imageInput.click());
+imageInput.addEventListener("change", () => uploadImages(imageInput.files).catch(showError));
+document.getElementById("preview-urls").addEventListener("click", previewUrls);
+document.getElementById("import-urls").addEventListener("click", () => importUrls().catch(showError));
+document.getElementById("publish-btn").addEventListener("click", () => publish().catch(showError));
+document.getElementById("reload-catalog").addEventListener("click", () => fetchCatalog().catch(showError));
+document.getElementById("refresh-preview").addEventListener("click", () => {
+  previewFrame.src = `index.html?adminPreview=${Date.now()}`;
+});
+
+const dropzone = document.getElementById("dropzone");
+["dragenter", "dragover"].forEach((eventName) => {
+  dropzone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    dropzone.classList.add("dragover");
+  });
+});
+["dragleave", "drop"].forEach((eventName) => {
+  dropzone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    dropzone.classList.remove("dragover");
+  });
+});
+dropzone.addEventListener("drop", (event) => {
+  uploadImages(event.dataTransfer.files).catch(showError);
+});
+
+pageGrid.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const { action, id } = button.dataset;
+  if (["up", "down", "first", "last"].includes(action)) movePage(id, action).catch(showError);
+  if (action === "replace-file") pageGrid.querySelector(`input[data-action="replace-file-input"][data-id="${id}"]`)?.click();
+  if (action === "delete") deletePage(id).catch(showError);
+});
+
+pageGrid.addEventListener("change", (event) => {
+  const target = event.target;
+  if (target.dataset.action === "label") {
+    updateLabel(target.dataset.id, target.value).catch(showError);
+  }
+  if (target.dataset.action === "replace-file-input" && target.files[0]) {
+    replaceWithFile(target.dataset.id, target.files[0]).catch(showError);
+  }
+});
+
+pageGrid.addEventListener("dragstart", (event) => {
+  const card = event.target.closest(".page-card");
+  if (!card) return;
+  state.draggedId = card.dataset.id;
+  card.classList.add("dragging");
+  event.dataTransfer.effectAllowed = "move";
+});
+
+pageGrid.addEventListener("dragend", () => {
+  state.draggedId = null;
+  pageGrid.querySelectorAll(".page-card").forEach((card) => card.classList.remove("dragging", "drop-target"));
+});
+
+pageGrid.addEventListener("dragover", (event) => {
+  const card = event.target.closest(".page-card");
+  if (!card || !state.draggedId || card.dataset.id === state.draggedId) return;
+  event.preventDefault();
+  card.classList.add("drop-target");
+});
+
+pageGrid.addEventListener("dragleave", (event) => {
+  event.target.closest(".page-card")?.classList.remove("drop-target");
+});
+
+pageGrid.addEventListener("drop", (event) => {
+  const card = event.target.closest(".page-card");
+  if (!card || !state.draggedId || card.dataset.id === state.draggedId) return;
+  event.preventDefault();
+  const ids = state.pages.map((page) => page.id);
+  const from = ids.indexOf(state.draggedId);
+  const to = ids.indexOf(card.dataset.id);
+  const [moved] = ids.splice(from, 1);
+  ids.splice(to, 0, moved);
+  reorderPages(ids).catch(showError);
+});
+
+function connectEvents() {
+  if (!window.EventSource) return;
+  if (state.events) state.events.close();
+  state.events = new EventSource(new URL("/api/events", window.location.origin));
+  state.events.addEventListener("catalog", (event) => {
+    renderCatalog(JSON.parse(event.data));
+    setStatus("Live catalog update received", "success");
+  });
+  state.events.onerror = () => setStatus("Live sync reconnecting...");
+}
+
+function startCatalogPolling() {
+  if (state.pollTimer) return;
+  state.pollTimer = window.setInterval(() => {
+    if (!adminApp.hidden) fetchCatalog().catch(() => {});
+  }, 5000);
+}
+
+function stopCatalogPolling() {
+  if (!state.pollTimer) return;
+  window.clearInterval(state.pollTimer);
+  state.pollTimer = null;
+}
+
+function showError(error) {
+  console.error(error);
+  setStatus(error.message || "Something went wrong", "error");
+}
+
+loginForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const formData = new FormData(loginForm);
+  login(String(formData.get("username") || ""), String(formData.get("password") || "")).catch(showError);
+});
+
+document.getElementById("logout-btn").addEventListener("click", () => logout().catch(showError));
+
+checkLogin();
+</script>
+</body>
+</html>

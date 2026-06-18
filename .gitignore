@@ -1,0 +1,10 @@
+node_modules/
+.vercel/
+tmp/
+assets/uploads/
+npm-debug.log*
+index.original.html
+
+.env
+.env.*
+!.env.example
