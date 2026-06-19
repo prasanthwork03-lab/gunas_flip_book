@@ -2,7 +2,11 @@
   "version": 2,
   "routes": [
     {
-      "src": "/(api/.*|admin(?:\\.html)?|admin\\.html)",
+      "src": "/api/(.*)",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/admin(?:\\.html)?",
       "dest": "/api/index.js"
     },
     {
