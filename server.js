@@ -9,6 +9,7 @@ const path = require("path");
 const express = require("express");
 const multer = require("multer");
 const { v2: cloudinary } = require("cloudinary");
+const { createClient } = require("@supabase/supabase-js");
 
 const ROOT = __dirname;
 const DATA_DIR = process.env.DATA_DIR
@@ -35,6 +36,11 @@ const IMAGE_MAX_WIDTH = Number(process.env.IMAGE_MAX_WIDTH || 2400);
 const IMAGE_MAX_HEIGHT = Number(process.env.IMAGE_MAX_HEIGHT || 2400);
 const CLOUDINARY_FOLDER = process.env.CLOUDINARY_FOLDER || "gunas-craft/catalog";
 const CLOUDINARY_MANIFEST_PUBLIC_ID = process.env.CLOUDINARY_MANIFEST_PUBLIC_ID || `${CLOUDINARY_FOLDER}/catalog-manifest.json`;
+const SUPABASE_URL = process.env.SUPABASE_URL || "";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "";
+const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || "gunas-craft-catalog";
+const SUPABASE_FOLDER = (process.env.SUPABASE_FOLDER || "gunas-craft/catalog").replace(/^\/+|\/+$/g, "");
+const SUPABASE_MANIFEST_PATH = (process.env.SUPABASE_MANIFEST_PATH || `${SUPABASE_FOLDER}/catalog.json`).replace(/^\/+/g, "");
 const MAX_CATALOG_PAGES = Number(process.env.MAX_CATALOG_PAGES || 40);
 const MAX_IMAGE_BYTES = Number(process.env.MAX_IMAGE_MB || 40) * 1024 * 1024;
 
@@ -67,7 +73,24 @@ const cloudinaryEnabled = STORAGE_PROVIDER === "cloudinary"
   && process.env.CLOUDINARY_CLOUD_NAME
   && process.env.CLOUDINARY_API_KEY
   && process.env.CLOUDINARY_API_SECRET;
-const vercelReadOnlyMode = Boolean(process.env.VERCEL) && !(CATALOG_BACKEND === "cloudinary" && cloudinaryEnabled);
+const supabaseEnabled = STORAGE_PROVIDER === "supabase"
+  && CATALOG_BACKEND === "supabase"
+  && SUPABASE_URL
+  && SUPABASE_SERVICE_ROLE_KEY;
+const remoteCatalogEnabled = (CATALOG_BACKEND === "cloudinary" && cloudinaryEnabled)
+  || (CATALOG_BACKEND === "supabase" && supabaseEnabled);
+const remoteStorageEnabled = cloudinaryEnabled || supabaseEnabled;
+const vercelReadOnlyMode = Boolean(process.env.VERCEL) && !remoteCatalogEnabled;
+const activeStorageProvider = cloudinaryEnabled ? "cloudinary" : supabaseEnabled ? "supabase" : "local";
+const hostedStorageMessage = "Online admin changes require Supabase environment variables: STORAGE_PROVIDER=supabase, CATALOG_BACKEND=supabase, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and SUPABASE_BUCKET.";
+const supabase = supabaseEnabled
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  })
+  : null;
 
 if (cloudinaryEnabled) {
   cloudinary.config({
@@ -125,17 +148,17 @@ function createCatalog(pages) {
   return {
     version: Date.now(),
     updatedAt: new Date().toISOString(),
-    storageProvider: cloudinaryEnabled ? "cloudinary" : "local",
+    storageProvider: activeStorageProvider,
     pages
   };
 }
 
 async function ensureDirs() {
   await fsp.mkdir(TMP_DIR, { recursive: true });
-  if (!vercelReadOnlyMode && !(process.env.VERCEL && CATALOG_BACKEND === "cloudinary" && cloudinaryEnabled)) {
+  if (!vercelReadOnlyMode && !(process.env.VERCEL && remoteCatalogEnabled)) {
     await fsp.mkdir(DATA_DIR, { recursive: true });
   }
-  if (!cloudinaryEnabled && !vercelReadOnlyMode) {
+  if (!remoteStorageEnabled && !vercelReadOnlyMode) {
     await fsp.mkdir(UPLOAD_DIR, { recursive: true });
   }
 }
@@ -161,6 +184,20 @@ async function initialPagesFromAssets() {
 async function loadCatalog() {
   if (catalogCache) return catalogCache;
 
+  if (CATALOG_BACKEND === "supabase" && supabaseEnabled) {
+    try {
+      const { data, error } = await supabase.storage.from(SUPABASE_BUCKET).download(SUPABASE_MANIFEST_PATH);
+      if (error) throw error;
+      const raw = typeof data.text === "function"
+        ? await data.text()
+        : Buffer.from(await data.arrayBuffer()).toString("utf8");
+      catalogCache = JSON.parse(raw);
+      return catalogCache;
+    } catch {
+      // First run creates the manifest from bundled assets below.
+    }
+  }
+
   if (CATALOG_BACKEND === "cloudinary" && cloudinaryEnabled) {
     try {
       const resource = await cloudinary.api.resource(CLOUDINARY_MANIFEST_PUBLIC_ID, { resource_type: "raw" });
@@ -177,7 +214,7 @@ async function loadCatalog() {
   try {
     const raw = await fsp.readFile(CATALOG_PATH, "utf8");
     catalogCache = JSON.parse(raw);
-    if (CATALOG_BACKEND === "cloudinary" && cloudinaryEnabled) {
+    if (remoteCatalogEnabled) {
       await writeCatalog(catalogCache, false);
     }
     return catalogCache;
@@ -193,9 +230,17 @@ async function loadCatalog() {
 async function writeCatalog(catalog, shouldBroadcast = true) {
   catalog.version = Date.now();
   catalog.updatedAt = new Date().toISOString();
-  catalog.storageProvider = cloudinaryEnabled ? "cloudinary" : "local";
+  catalog.storageProvider = activeStorageProvider;
 
-  if (CATALOG_BACKEND === "cloudinary" && cloudinaryEnabled) {
+  if (CATALOG_BACKEND === "supabase" && supabaseEnabled) {
+    const payload = Buffer.from(JSON.stringify(catalog, null, 2));
+    const { error } = await supabase.storage.from(SUPABASE_BUCKET).upload(SUPABASE_MANIFEST_PATH, payload, {
+      contentType: "application/json",
+      cacheControl: "0",
+      upsert: true
+    });
+    if (error) throw error;
+  } else if (CATALOG_BACKEND === "cloudinary" && cloudinaryEnabled) {
     const manifestPath = path.join(TMP_DIR, `catalog-${Date.now()}.json`);
     await fsp.writeFile(manifestPath, JSON.stringify(catalog, null, 2));
     await cloudinary.uploader.upload(manifestPath, {
@@ -207,7 +252,7 @@ async function writeCatalog(catalog, shouldBroadcast = true) {
     await fsp.rm(manifestPath, { force: true }).catch(() => {});
   } else {
     if (process.env.VERCEL) {
-      throw new Error("Online admin changes require Cloudinary environment variables: STORAGE_PROVIDER=cloudinary, CATALOG_BACKEND=cloudinary, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET.");
+      throw new Error(hostedStorageMessage);
     }
     const tempPath = `${CATALOG_PATH}.tmp`;
     await fsp.writeFile(tempPath, JSON.stringify(catalog, null, 2));
@@ -386,17 +431,11 @@ async function uploadToCloudinary(buffer, label, metadata) {
   };
 }
 
-async function saveLocalImage(buffer, label, metadata) {
-  const folder = new Date().toISOString().slice(0, 10);
-  const targetDir = path.join(UPLOAD_DIR, folder);
-  await fsp.mkdir(targetDir, { recursive: true });
-
+async function optimizeImageBuffer(buffer) {
   const outputFormat = SUPPORTED_FORMATS.has(IMAGE_OUTPUT_FORMAT)
     ? (IMAGE_OUTPUT_FORMAT === "jpg" ? "jpeg" : IMAGE_OUTPUT_FORMAT)
     : "webp";
   const ext = outputFormat === "jpeg" ? "jpg" : outputFormat;
-  const fileName = `${slugify(label)}-${Date.now()}-${crypto.randomBytes(3).toString("hex")}.${ext}`;
-  const targetPath = path.join(targetDir, fileName);
 
   let pipeline = getSharp()(buffer, { failOn: "none" })
     .rotate()
@@ -413,21 +452,68 @@ async function saveLocalImage(buffer, label, metadata) {
   if (outputFormat === "avif") pipeline = pipeline.avif({ quality: 72 });
 
   const optimized = await pipeline.toBuffer();
-  await fsp.writeFile(targetPath, optimized);
+  return {
+    buffer: optimized,
+    format: outputFormat,
+    ext,
+    contentType: `image/${outputFormat === "jpeg" ? "jpeg" : outputFormat}`
+  };
+}
+
+async function saveSupabaseImage(buffer, label) {
+  const folder = new Date().toISOString().slice(0, 10);
+  const optimized = await optimizeImageBuffer(buffer);
+  const fileName = `${slugify(label)}-${Date.now()}-${crypto.randomBytes(3).toString("hex")}.${optimized.ext}`;
+  const objectPath = `${SUPABASE_FOLDER}/${folder}/${fileName}`;
+  const { error } = await supabase.storage.from(SUPABASE_BUCKET).upload(objectPath, optimized.buffer, {
+    contentType: optimized.contentType,
+    cacheControl: "31536000",
+    upsert: false
+  });
+  if (error) throw error;
+
+  const { data } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(objectPath);
+  if (!data || !data.publicUrl) {
+    throw new Error("Supabase upload succeeded but no public URL was returned. Make the bucket public.");
+  }
+
+  return {
+    src: data.publicUrl,
+    publicId: objectPath,
+    bytes: optimized.buffer.length,
+    storageProvider: "supabase"
+  };
+}
+
+async function saveLocalImage(buffer, label) {
+  const folder = new Date().toISOString().slice(0, 10);
+  const targetDir = path.join(UPLOAD_DIR, folder);
+  await fsp.mkdir(targetDir, { recursive: true });
+
+  const optimized = await optimizeImageBuffer(buffer);
+  const fileName = `${slugify(label)}-${Date.now()}-${crypto.randomBytes(3).toString("hex")}.${optimized.ext}`;
+  const targetPath = path.join(targetDir, fileName);
+
+  await fsp.writeFile(targetPath, optimized.buffer);
 
   return {
     src: toWebPath(targetPath),
-    bytes: optimized.length,
+    bytes: optimized.buffer.length,
     storageProvider: "local"
   };
 }
 
 async function createPageFromBuffer(buffer, options) {
+  if (vercelReadOnlyMode) {
+    throw new Error(hostedStorageMessage);
+  }
   const metadata = await validateImageBuffer(buffer, options);
   const label = options.label || slugify(options.originalName || options.sourceUrl || "Catalog page").replace(/-/g, " ");
   const stored = cloudinaryEnabled
     ? await uploadToCloudinary(buffer, label, metadata)
-    : await saveLocalImage(buffer, label, metadata);
+    : supabaseEnabled
+      ? await saveSupabaseImage(buffer, label, metadata)
+      : await saveLocalImage(buffer, label, metadata);
 
   return {
     id: pageId(),
@@ -451,6 +537,10 @@ async function deleteStoredAsset(page) {
   if (!page) return;
   if (page.storageProvider === "cloudinary" && page.publicId && cloudinaryEnabled) {
     await cloudinary.uploader.destroy(page.publicId).catch(() => {});
+    return;
+  }
+  if (page.storageProvider === "supabase" && page.publicId && supabaseEnabled) {
+    await supabase.storage.from(SUPABASE_BUCKET).remove([page.publicId]).catch(() => {});
     return;
   }
   if (page.storageProvider === "local" && page.src && page.src.startsWith("assets/uploads/")) {
@@ -838,7 +928,7 @@ if (require.main === module) {
         console.log(`Gunas Craft flipbook running at http://127.0.0.1:${PORT}`);
         console.log(`Admin panel: http://127.0.0.1:${PORT}/admin.html`);
         console.log(`Username: ${ADMIN_USERNAME}`);
-        console.log(`Storage provider: ${cloudinaryEnabled ? "cloudinary" : "local"}`);
+        console.log(`Storage provider: ${activeStorageProvider}`);
         console.log(`Catalog backend: ${CATALOG_BACKEND}`);
         console.log(`Max pages: ${MAX_CATALOG_PAGES}`);
       });

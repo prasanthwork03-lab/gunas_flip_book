@@ -548,7 +548,7 @@ function setStatus(message, type = "info") {
 
 function ensureWritable() {
   if (!state.readOnly) return true;
-  setStatus("This hosted copy is read-only. Use the Render admin link for live catalog updates.", "info");
+  setStatus("This hosted copy is read-only until Supabase storage is configured.", "info");
   return false;
 }
 
@@ -689,7 +689,7 @@ async function fetchCatalog() {
   const catalog = await api("/api/catalog", { method: "GET" });
   renderCatalog(catalog);
   if (state.readOnly) {
-    setStatus("Catalog loaded in read-only mode. Use Render admin for live updates.", "info");
+    setStatus("Catalog loaded in read-only mode. Configure Supabase to enable live updates.", "info");
   } else {
     setStatus("Catalog loaded", "success");
   }

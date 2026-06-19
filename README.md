@@ -20,19 +20,9 @@ Production-ready flipbook catalog with a simple admin panel.
 
 ## Production Storage
 
-For Render production, this repo includes `render.yaml` with a persistent disk mounted at `/var/data`.
-Admin uploads and catalog order are saved here:
+For free production hosting, use Vercel for the app and Supabase Storage for uploaded catalog images plus the catalog JSON manifest. This avoids paid Render disks and keeps admin changes durable.
 
-```text
-DATA_DIR=/var/data/catalog
-UPLOAD_DIR=/var/data/uploads
-```
-
-This is required because normal hosted app files are not reliable for permanent admin uploads.
-
-For Vercel production, use Cloudinary. This is required because Vercel serverless functions do not keep local uploads or JSON changes permanently.
-
-Set these Vercel environment variables:
+Create a public Supabase Storage bucket, then set these Vercel environment variables:
 
 ```text
 ADMIN_USERNAME=admin
@@ -40,35 +30,22 @@ ADMIN_PASSWORD=use-a-strong-password
 ADMIN_SESSION_SECRET=use-a-long-random-secret
 MAX_CATALOG_PAGES=40
 
-STORAGE_PROVIDER=cloudinary
-CATALOG_BACKEND=cloudinary
-CLOUDINARY_CLOUD_NAME=your-cloud-name
-CLOUDINARY_API_KEY=your-api-key
-CLOUDINARY_API_SECRET=your-api-secret
-CLOUDINARY_FOLDER=gunas-craft/catalog
-CLOUDINARY_MANIFEST_PUBLIC_ID=gunas-craft/catalog/catalog-manifest.json
+STORAGE_PROVIDER=supabase
+CATALOG_BACKEND=supabase
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_BUCKET=gunas-craft-catalog
+SUPABASE_FOLDER=gunas-craft/catalog
+SUPABASE_MANIFEST_PATH=gunas-craft/catalog/catalog.json
 ```
 
 ## Deploy
-
-### Render
-
-1. Push this folder to GitHub.
-2. In Render, create a new Blueprint from the GitHub repository.
-3. Render reads `render.yaml` and creates a Node web service with a persistent disk.
-4. Add the `ADMIN_PASSWORD` value when Render asks for the unsynced secret.
-5. Deploy production.
-
-After deployment:
-
-- Admin URL: `https://your-render-service.onrender.com/admin.html`
-- Public catalog: `https://your-render-service.onrender.com/index.html`
 
 ### Vercel
 
 1. Push this folder to GitHub.
 2. Import the GitHub repository in Vercel.
-3. Add the Cloudinary environment variables above in Vercel Project Settings.
+3. Add the Supabase environment variables above in Vercel Project Settings.
 4. Deploy production.
 
 After deployment:
