@@ -979,15 +979,7 @@ async function loadCatalog() {
 }
 
 function connectCatalogSync() {
-  if (!window.EventSource) return;
-  try {
-    const events = new EventSource("/api/events");
-    events.addEventListener("catalog", (event) => {
-      updateCatalog(JSON.parse(event.data));
-    });
-  } catch {
-    // Live sync is optional; manual reload still works on static hosts.
-  }
+  startCatalogPolling();
 }
 
 function startCatalogPolling() {
@@ -1430,7 +1422,6 @@ render(0);
 applyZoom();
 loadCatalog();
 connectCatalogSync();
-startCatalogPolling();
 
 </script>
 </body>

@@ -596,7 +596,7 @@ async function checkLogin() {
     await api("/api/admin/me", { method: "GET" });
     showAdmin();
     await fetchCatalog();
-    connectEvents();
+    startCatalogPolling();
   } catch {
     showLogin();
   }
@@ -612,7 +612,7 @@ async function login(username, password) {
     });
     showAdmin();
     await fetchCatalog();
-    connectEvents();
+    startCatalogPolling();
     setStatus("Logged in", "success");
   } catch (error) {
     showLogin(error.message || "Invalid username or password");
@@ -925,14 +925,7 @@ pageGrid.addEventListener("drop", (event) => {
 });
 
 function connectEvents() {
-  if (!window.EventSource) return;
-  if (state.events) state.events.close();
-  state.events = new EventSource(new URL("/api/events", window.location.origin));
-  state.events.addEventListener("catalog", (event) => {
-    renderCatalog(JSON.parse(event.data));
-    setStatus("Live catalog update received", "success");
-  });
-  state.events.onerror = () => setStatus("Live sync reconnecting...");
+  startCatalogPolling();
 }
 
 function startCatalogPolling() {

@@ -6,6 +6,10 @@ const fs = require("fs");
 const fsp = require("fs/promises");
 const os = require("os");
 const path = require("path");
+if (process.env.VERCEL || process.env.NODE_ENV === "production") {
+  process.noDeprecation = true;
+}
+
 const express = require("express");
 const multer = require("multer");
 const { v2: cloudinary } = require("cloudinary");
@@ -770,6 +774,9 @@ app.get("/api/admin/me", requireAdmin, (req, res) => {
 });
 
 app.get("/api/events", asyncHandler(async (req, res) => {
+  if (process.env.VERCEL) {
+    return res.status(204).end();
+  }
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache, no-transform",
