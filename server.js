@@ -117,10 +117,41 @@ let catalogCache = null;
 let catalogQueue = Promise.resolve();
 const eventClients = new Set();
 let sharpModule = null;
+let sharpLoadAttempted = false;
 
 function getSharp() {
-  if (!sharpModule) sharpModule = require("sharp");
+  if (process.env.DISABLE_SHARP === "1") return null;
+  if (!sharpLoadAttempted) {
+    sharpLoadAttempted = true;
+    try {
+      sharpModule = require("sharp");
+    } catch {
+      sharpModule = null;
+    }
+  }
   return sharpModule;
+}
+
+function detectImageFormat(buffer, hint = {}) {
+  const mime = String(hint.mime || "").toLowerCase();
+  if (mime === "image/jpeg") return "jpeg";
+  if (mime === "image/png") return "png";
+  if (mime === "image/webp") return "webp";
+  if (mime === "image/avif") return "avif";
+
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return "jpeg";
+  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "png";
+  if (buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP") return "webp";
+  if (buffer.length >= 16 && buffer.toString("ascii", 4, 8) === "ftyp" && /avif|avis/i.test(buffer.toString("ascii", 8, 32))) return "avif";
+
+  const ext = path.extname(hint.originalName || hint.sourceUrl || "").replace(".", "").toLowerCase();
+  if (ext === "jpg") return "jpeg";
+  if (SUPPORTED_FORMATS.has(ext)) return ext;
+  return null;
+}
+
+function contentTypeForFormat(format) {
+  return `image/${format === "jpg" ? "jpeg" : format}`;
 }
 
 function toWebPath(filePath) {
@@ -182,7 +213,7 @@ async function initialPagesFromAssets() {
 }
 
 async function loadCatalog() {
-  if (catalogCache) return catalogCache;
+  if (catalogCache && !remoteCatalogEnabled) return catalogCache;
 
   if (CATALOG_BACKEND === "supabase" && supabaseEnabled) {
     try {
@@ -397,7 +428,21 @@ async function validateImageBuffer(buffer, hint = {}) {
   if (buffer.length > MAX_IMAGE_BYTES) {
     throw new Error(`Image is larger than ${process.env.MAX_IMAGE_MB || 40}MB`);
   }
-  const metadata = await getSharp()(buffer, { failOn: "none" }).metadata();
+
+  const sharp = getSharp();
+  if (!sharp) {
+    const format = detectImageFormat(buffer, hint);
+    if (!SUPPORTED_FORMATS.has(format)) {
+      throw new Error(`Unsupported image format: ${hint.mime || hint.originalName || "unknown"}`);
+    }
+    return {
+      format,
+      width: null,
+      height: null
+    };
+  }
+
+  const metadata = await sharp(buffer, { failOn: "none" }).metadata();
   const format = metadata.format === "jpg" ? "jpeg" : metadata.format;
   if (!SUPPORTED_FORMATS.has(format)) {
     throw new Error(`Unsupported image format: ${metadata.format || hint.mime || "unknown"}`);
@@ -431,13 +476,25 @@ async function uploadToCloudinary(buffer, label, metadata) {
   };
 }
 
-async function optimizeImageBuffer(buffer) {
+async function optimizeImageBuffer(buffer, metadata = {}) {
+  const sharp = getSharp();
+  if (!sharp) {
+    const format = metadata.format || detectImageFormat(buffer, metadata) || "jpeg";
+    const ext = format === "jpeg" ? "jpg" : format;
+    return {
+      buffer,
+      format,
+      ext,
+      contentType: contentTypeForFormat(format)
+    };
+  }
+
   const outputFormat = SUPPORTED_FORMATS.has(IMAGE_OUTPUT_FORMAT)
     ? (IMAGE_OUTPUT_FORMAT === "jpg" ? "jpeg" : IMAGE_OUTPUT_FORMAT)
     : "webp";
   const ext = outputFormat === "jpeg" ? "jpg" : outputFormat;
 
-  let pipeline = getSharp()(buffer, { failOn: "none" })
+  let pipeline = sharp(buffer, { failOn: "none" })
     .rotate()
     .resize({
       width: IMAGE_MAX_WIDTH,
@@ -456,13 +513,13 @@ async function optimizeImageBuffer(buffer) {
     buffer: optimized,
     format: outputFormat,
     ext,
-    contentType: `image/${outputFormat === "jpeg" ? "jpeg" : outputFormat}`
+    contentType: contentTypeForFormat(outputFormat)
   };
 }
 
-async function saveSupabaseImage(buffer, label) {
+async function saveSupabaseImage(buffer, label, metadata) {
   const folder = new Date().toISOString().slice(0, 10);
-  const optimized = await optimizeImageBuffer(buffer);
+  const optimized = await optimizeImageBuffer(buffer, metadata);
   const fileName = `${slugify(label)}-${Date.now()}-${crypto.randomBytes(3).toString("hex")}.${optimized.ext}`;
   const objectPath = `${SUPABASE_FOLDER}/${folder}/${fileName}`;
   const { error } = await supabase.storage.from(SUPABASE_BUCKET).upload(objectPath, optimized.buffer, {
@@ -485,12 +542,12 @@ async function saveSupabaseImage(buffer, label) {
   };
 }
 
-async function saveLocalImage(buffer, label) {
+async function saveLocalImage(buffer, label, metadata) {
   const folder = new Date().toISOString().slice(0, 10);
   const targetDir = path.join(UPLOAD_DIR, folder);
   await fsp.mkdir(targetDir, { recursive: true });
 
-  const optimized = await optimizeImageBuffer(buffer);
+  const optimized = await optimizeImageBuffer(buffer, metadata);
   const fileName = `${slugify(label)}-${Date.now()}-${crypto.randomBytes(3).toString("hex")}.${optimized.ext}`;
   const targetPath = path.join(targetDir, fileName);
 
