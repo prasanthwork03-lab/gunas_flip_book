@@ -890,14 +890,22 @@ app.post("/api/images/direct-upload-urls", requireAdmin, asyncHandler(async (req
   }
   const files = Array.isArray(req.body.files) ? req.body.files : [];
   if (!files.length) return res.status(400).json({ error: "No images selected" });
-  assertCanAddPages(await loadCatalog(), files.length);
+
+  let catalog;
+  let descriptors;
+  try {
+    catalog = await loadCatalog();
+    assertCanAddPages(catalog, files.length);
+    descriptors = files.map(validateUploadDescriptor);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
 
   const uploads = [];
-  for (const item of files) {
-    const file = validateUploadDescriptor(item);
+  for (const file of descriptors) {
     const objectPath = supabaseObjectPathForUpload(file.originalName);
     const { data, error } = await supabase.storage.from(SUPABASE_BUCKET).createSignedUploadUrl(objectPath);
-    if (error) throw error;
+    if (error) return res.status(400).json({ error: error.message });
     uploads.push({
       originalName: file.originalName,
       contentType: file.contentType,
@@ -917,8 +925,13 @@ app.post("/api/images/direct-complete", requireAdmin, asyncHandler(async (req, r
   }
   const uploads = Array.isArray(req.body.uploads) ? req.body.uploads : [];
   if (!uploads.length) return res.status(400).json({ error: "No uploaded images to publish" });
-  assertCanAddPages(await loadCatalog(), uploads.length);
-  const pages = uploads.map(pageFromSupabaseObject);
+  let pages;
+  try {
+    assertCanAddPages(await loadCatalog(), uploads.length);
+    pages = uploads.map(pageFromSupabaseObject);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
   const { catalog } = await withCatalog((draft) => {
     assertCanAddPages(draft, pages.length);
     draft.pages.push(...pages);
