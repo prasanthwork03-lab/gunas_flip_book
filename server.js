@@ -233,6 +233,7 @@ function publicCatalog(catalog) {
     version: catalog.version,
     updatedAt: catalog.updatedAt,
     storageProvider: catalog.storageProvider,
+    readOnly: vercelReadOnlyMode,
     maxPages: MAX_CATALOG_PAGES,
     pages: catalog.pages
   };

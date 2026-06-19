@@ -206,6 +206,10 @@
     background: #fff6dc;
   }
 
+  .dropzone.readonly {
+    opacity: 0.72;
+  }
+
   .coil {
     width: 54px;
     height: 54px;
@@ -504,6 +508,7 @@
 const state = {
   pages: [],
   maxPages: 40,
+  readOnly: false,
   draggedId: null,
   events: null,
   pollTimer: null
@@ -539,6 +544,12 @@ function showAdmin() {
 function setStatus(message, type = "info") {
   statusEl.textContent = message;
   statusEl.style.color = type === "error" ? "var(--danger)" : type === "success" ? "var(--success)" : "var(--muted)";
+}
+
+function ensureWritable() {
+  if (!state.readOnly) return true;
+  setStatus("This hosted copy is read-only. Use the Render admin link for live catalog updates.", "info");
+  return false;
 }
 
 function adminHeaders(extra = {}) {
@@ -606,10 +617,14 @@ async function logout() {
 function renderCatalog(catalog) {
   state.pages = catalog.pages || [];
   state.maxPages = catalog.maxPages || 40;
+  state.readOnly = Boolean(catalog.readOnly);
   pageCount.textContent = `${state.pages.length} / ${state.maxPages} pages | Updated ${catalog.updatedAt ? new Date(catalog.updatedAt).toLocaleString() : "now"}`;
   const full = state.pages.length >= state.maxPages;
-  document.getElementById("pick-images").disabled = full;
-  document.getElementById("import-urls").disabled = full;
+  const locked = full || state.readOnly;
+  document.getElementById("pick-images").disabled = locked;
+  document.getElementById("import-urls").disabled = locked;
+  document.getElementById("publish-btn").disabled = state.readOnly;
+  document.getElementById("dropzone").classList.toggle("readonly", state.readOnly);
   renderPageGrid();
 }
 
@@ -618,23 +633,24 @@ function renderPageGrid() {
   state.pages.forEach((page, index) => {
     const card = document.createElement("article");
     card.className = "page-card";
-    card.draggable = true;
+    card.draggable = !state.readOnly;
     card.dataset.id = page.id;
+    const disabled = state.readOnly ? "disabled" : "";
     card.innerHTML = `
       <div class="page-thumb">
         <img src="${page.src}" alt="${page.label || `Page ${index + 1}`}">
         <span class="badge">${index + 1}</span>
       </div>
-      <input type="text" value="${escapeHtml(page.label || `Page ${index + 1}`)}" data-action="label" data-id="${page.id}" aria-label="Page label">
+      <input type="text" value="${escapeHtml(page.label || `Page ${index + 1}`)}" data-action="label" data-id="${page.id}" aria-label="Page label" ${disabled}>
       <div class="mini-actions">
-        <button type="button" data-action="up" data-id="${page.id}">Up</button>
-        <button type="button" data-action="down" data-id="${page.id}">Down</button>
-        <button type="button" data-action="first" data-id="${page.id}">First</button>
-        <button type="button" data-action="last" data-id="${page.id}">Last</button>
+        <button type="button" data-action="up" data-id="${page.id}" ${disabled}>Up</button>
+        <button type="button" data-action="down" data-id="${page.id}" ${disabled}>Down</button>
+        <button type="button" data-action="first" data-id="${page.id}" ${disabled}>First</button>
+        <button type="button" data-action="last" data-id="${page.id}" ${disabled}>Last</button>
       </div>
       <div class="mini-actions two">
-        <button type="button" data-action="replace-file" data-id="${page.id}">Replace Image</button>
-        <button class="danger" type="button" data-action="delete" data-id="${page.id}">Delete</button>
+        <button type="button" data-action="replace-file" data-id="${page.id}" ${disabled}>Replace Image</button>
+        <button class="danger" type="button" data-action="delete" data-id="${page.id}" ${disabled}>Delete</button>
       </div>
       <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" data-action="replace-file-input" data-id="${page.id}" hidden>
       <div class="meta">${escapeHtml(page.source || "catalog")} | ${escapeHtml(page.storageProvider || "local")} | ${escapeHtml(page.format || "")}</div>
@@ -672,10 +688,15 @@ function previewUrls() {
 async function fetchCatalog() {
   const catalog = await api("/api/catalog", { method: "GET" });
   renderCatalog(catalog);
-  setStatus("Catalog loaded", "success");
+  if (state.readOnly) {
+    setStatus("Catalog loaded in read-only mode. Use Render admin for live updates.", "info");
+  } else {
+    setStatus("Catalog loaded", "success");
+  }
 }
 
 async function uploadImages(files) {
+  if (!ensureWritable()) return;
   if (!files.length) return;
   if (state.pages.length + files.length > state.maxPages) {
     setStatus(`Maximum ${state.maxPages} pages only. Delete or replace a page before adding more.`, "error");
@@ -690,6 +711,7 @@ async function uploadImages(files) {
 }
 
 async function importUrls() {
+  if (!ensureWritable()) return;
   const urls = parseUrls();
   if (!urls.length) {
     setStatus("Paste at least one image URL", "error");
@@ -710,6 +732,7 @@ async function importUrls() {
 }
 
 async function movePage(id, action) {
+  if (!ensureWritable()) return;
   const data = await api(`/api/pages/${id}/move`, {
     method: "PATCH",
     body: JSON.stringify({ action })
@@ -719,6 +742,7 @@ async function movePage(id, action) {
 }
 
 async function reorderPages(ids) {
+  if (!ensureWritable()) return;
   const data = await api("/api/catalog/reorder", {
     method: "PATCH",
     body: JSON.stringify({ ids })
@@ -728,6 +752,7 @@ async function reorderPages(ids) {
 }
 
 async function updateLabel(id, label) {
+  if (!ensureWritable()) return;
   const data = await api(`/api/pages/${id}`, {
     method: "PATCH",
     body: JSON.stringify({ label })
@@ -737,6 +762,7 @@ async function updateLabel(id, label) {
 }
 
 async function replaceWithFile(id, file) {
+  if (!ensureWritable()) return;
   const formData = new FormData();
   formData.append("image", file);
   setStatus("Replacing image...");
@@ -746,6 +772,7 @@ async function replaceWithFile(id, file) {
 }
 
 async function deletePage(id) {
+  if (!ensureWritable()) return;
   const page = state.pages.find((item) => item.id === id);
   if (!confirm(`Delete page "${page ? page.label : id}"?`)) return;
   const data = await api(`/api/pages/${id}`, { method: "DELETE" });
@@ -754,6 +781,7 @@ async function deletePage(id) {
 }
 
 async function publish() {
+  if (!ensureWritable()) return;
   const data = await api("/api/catalog/publish", { method: "POST", body: JSON.stringify({}) });
   renderCatalog(data.catalog);
   setStatus("Live flipbook synced", "success");
@@ -783,10 +811,15 @@ const dropzone = document.getElementById("dropzone");
   });
 });
 dropzone.addEventListener("drop", (event) => {
+  if (!ensureWritable()) return;
   uploadImages(event.dataTransfer.files).catch(showError);
 });
 
 pageGrid.addEventListener("click", (event) => {
+  if (state.readOnly) {
+    ensureWritable();
+    return;
+  }
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   const { action, id } = button.dataset;
@@ -796,6 +829,10 @@ pageGrid.addEventListener("click", (event) => {
 });
 
 pageGrid.addEventListener("change", (event) => {
+  if (state.readOnly) {
+    ensureWritable();
+    return;
+  }
   const target = event.target;
   if (target.dataset.action === "label") {
     updateLabel(target.dataset.id, target.value).catch(showError);
@@ -806,6 +843,7 @@ pageGrid.addEventListener("change", (event) => {
 });
 
 pageGrid.addEventListener("dragstart", (event) => {
+  if (state.readOnly) return;
   const card = event.target.closest(".page-card");
   if (!card) return;
   state.draggedId = card.dataset.id;
@@ -819,6 +857,7 @@ pageGrid.addEventListener("dragend", () => {
 });
 
 pageGrid.addEventListener("dragover", (event) => {
+  if (state.readOnly) return;
   const card = event.target.closest(".page-card");
   if (!card || !state.draggedId || card.dataset.id === state.draggedId) return;
   event.preventDefault();
@@ -830,6 +869,7 @@ pageGrid.addEventListener("dragleave", (event) => {
 });
 
 pageGrid.addEventListener("drop", (event) => {
+  if (state.readOnly) return;
   const card = event.target.closest(".page-card");
   if (!card || !state.draggedId || card.dataset.id === state.draggedId) return;
   event.preventDefault();
