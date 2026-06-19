@@ -37,7 +37,7 @@ const IMAGE_MAX_HEIGHT = Number(process.env.IMAGE_MAX_HEIGHT || 2400);
 const CLOUDINARY_FOLDER = process.env.CLOUDINARY_FOLDER || "gunas-craft/catalog";
 const CLOUDINARY_MANIFEST_PUBLIC_ID = process.env.CLOUDINARY_MANIFEST_PUBLIC_ID || `${CLOUDINARY_FOLDER}/catalog-manifest.json`;
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_KEY || "";
 const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || "gunas-craft-catalog";
 const SUPABASE_FOLDER = (process.env.SUPABASE_FOLDER || "gunas-craft/catalog").replace(/^\/+|\/+$/g, "");
 const SUPABASE_MANIFEST_PATH = (process.env.SUPABASE_MANIFEST_PATH || `${SUPABASE_FOLDER}/catalog.json`).replace(/^\/+/g, "");
@@ -82,7 +82,7 @@ const remoteCatalogEnabled = (CATALOG_BACKEND === "cloudinary" && cloudinaryEnab
 const remoteStorageEnabled = cloudinaryEnabled || supabaseEnabled;
 const vercelReadOnlyMode = Boolean(process.env.VERCEL) && !remoteCatalogEnabled;
 const activeStorageProvider = cloudinaryEnabled ? "cloudinary" : supabaseEnabled ? "supabase" : "local";
-const hostedStorageMessage = "Online admin changes require Supabase environment variables: STORAGE_PROVIDER=supabase, CATALOG_BACKEND=supabase, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and SUPABASE_BUCKET.";
+const hostedStorageMessage = "Online admin changes require Supabase environment variables: STORAGE_PROVIDER=supabase, CATALOG_BACKEND=supabase, SUPABASE_URL, SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY, and SUPABASE_BUCKET.";
 const supabase = supabaseEnabled
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: {
