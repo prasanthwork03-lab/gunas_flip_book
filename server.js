@@ -67,6 +67,7 @@ const cloudinaryEnabled = STORAGE_PROVIDER === "cloudinary"
   && process.env.CLOUDINARY_CLOUD_NAME
   && process.env.CLOUDINARY_API_KEY
   && process.env.CLOUDINARY_API_SECRET;
+const vercelReadOnlyMode = Boolean(process.env.VERCEL) && !(CATALOG_BACKEND === "cloudinary" && cloudinaryEnabled);
 
 if (cloudinaryEnabled) {
   cloudinary.config({
@@ -131,10 +132,10 @@ function createCatalog(pages) {
 
 async function ensureDirs() {
   await fsp.mkdir(TMP_DIR, { recursive: true });
-  if (!(process.env.VERCEL && CATALOG_BACKEND === "cloudinary" && cloudinaryEnabled)) {
+  if (!vercelReadOnlyMode && !(process.env.VERCEL && CATALOG_BACKEND === "cloudinary" && cloudinaryEnabled)) {
     await fsp.mkdir(DATA_DIR, { recursive: true });
   }
-  if (!cloudinaryEnabled) {
+  if (!cloudinaryEnabled && !vercelReadOnlyMode) {
     await fsp.mkdir(UPLOAD_DIR, { recursive: true });
   }
 }
@@ -183,6 +184,7 @@ async function loadCatalog() {
   } catch {
     const pages = await initialPagesFromAssets();
     catalogCache = createCatalog(pages);
+    if (vercelReadOnlyMode) return catalogCache;
     await writeCatalog(catalogCache, false);
     return catalogCache;
   }
