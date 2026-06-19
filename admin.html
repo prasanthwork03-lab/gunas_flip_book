@@ -327,6 +327,11 @@
     gap: 12px;
   }
 
+  .page-grid.busy {
+    pointer-events: none;
+    opacity: 0.68;
+  }
+
   .page-card {
     display: grid;
     gap: 10px;
@@ -509,6 +514,7 @@ const state = {
   pages: [],
   maxPages: 40,
   readOnly: false,
+  busy: false,
   draggedId: null,
   events: null,
   pollTimer: null
@@ -544,6 +550,17 @@ function showAdmin() {
 function setStatus(message, type = "info") {
   statusEl.textContent = message;
   statusEl.style.color = type === "error" ? "var(--danger)" : type === "success" ? "var(--success)" : "var(--muted)";
+}
+
+function setBusy(isBusy) {
+  state.busy = isBusy;
+  const full = state.pages.length >= state.maxPages;
+  const locked = isBusy || full || state.readOnly;
+  document.getElementById("pick-images").disabled = locked;
+  document.getElementById("import-urls").disabled = locked;
+  document.getElementById("publish-btn").disabled = isBusy || state.readOnly;
+  document.getElementById("reload-catalog").disabled = isBusy;
+  pageGrid.classList.toggle("busy", isBusy);
 }
 
 function ensureWritable() {
@@ -620,11 +637,12 @@ function renderCatalog(catalog) {
   state.readOnly = Boolean(catalog.readOnly);
   pageCount.textContent = `${state.pages.length} / ${state.maxPages} pages | Updated ${catalog.updatedAt ? new Date(catalog.updatedAt).toLocaleString() : "now"}`;
   const full = state.pages.length >= state.maxPages;
-  const locked = full || state.readOnly;
+  const locked = state.busy || full || state.readOnly;
   document.getElementById("pick-images").disabled = locked;
   document.getElementById("import-urls").disabled = locked;
-  document.getElementById("publish-btn").disabled = state.readOnly;
+  document.getElementById("publish-btn").disabled = state.busy || state.readOnly;
   document.getElementById("dropzone").classList.toggle("readonly", state.readOnly);
+  pageGrid.classList.toggle("busy", state.busy);
   renderPageGrid();
 }
 
@@ -686,7 +704,7 @@ function previewUrls() {
 }
 
 async function fetchCatalog() {
-  const catalog = await api("/api/catalog", { method: "GET" });
+  const catalog = await api(`/api/catalog?refresh=${Date.now()}`, { method: "GET" });
   renderCatalog(catalog);
   if (state.readOnly) {
     setStatus("Catalog loaded in read-only mode. Configure Supabase to enable live updates.", "info");
@@ -695,19 +713,34 @@ async function fetchCatalog() {
   }
 }
 
+async function refreshAfterChange(message, type = "success") {
+  const catalog = await api(`/api/catalog?refresh=${Date.now()}`, { method: "GET" });
+  renderCatalog(catalog);
+  previewFrame.src = `index.html?catalogRefresh=${Date.now()}`;
+  setStatus(message, type);
+  return catalog;
+}
+
 async function uploadImages(files) {
   if (!ensureWritable()) return;
-  if (!files.length) return;
-  if (state.pages.length + files.length > state.maxPages) {
+  const selectedFiles = Array.from(files || []);
+  if (!selectedFiles.length) return;
+  if (state.pages.length + selectedFiles.length > state.maxPages) {
     setStatus(`Maximum ${state.maxPages} pages only. Delete or replace a page before adding more.`, "error");
     return;
   }
   const formData = new FormData();
-  [...files].forEach((file) => formData.append("images", file));
-  setStatus(`Uploading ${files.length} image(s)...`);
-  const data = await api("/api/images/upload", { method: "POST", body: formData });
-  renderCatalog(data.catalog);
-  setStatus(`${data.added.length} image(s) uploaded and published`, "success");
+  selectedFiles.forEach((file) => formData.append("images", file));
+  setStatus(`Uploading ${selectedFiles.length} image(s)...`);
+  setBusy(true);
+  try {
+    const data = await api("/api/images/upload", { method: "POST", body: formData });
+    setBusy(false);
+    await refreshAfterChange(`${data.added.length} image(s) uploaded and published`);
+  } finally {
+    imageInput.value = "";
+    setBusy(false);
+  }
 }
 
 async function importUrls() {
@@ -722,43 +755,45 @@ async function importUrls() {
     return;
   }
   setStatus(`Importing ${urls.length} URL(s)...`);
-  const data = await api("/api/images/import-urls", {
-    method: "POST",
-    body: JSON.stringify({ urls })
-  });
-  renderCatalog(data.catalog);
-  const skipped = data.errors && data.errors.length ? `, ${data.errors.length} skipped` : "";
-  setStatus(`${data.added.length} URL image(s) imported${skipped}`, data.errors && data.errors.length ? "info" : "success");
+  setBusy(true);
+  try {
+    const data = await api("/api/images/import-urls", {
+      method: "POST",
+      body: JSON.stringify({ urls })
+    });
+    setBusy(false);
+    const skipped = data.errors && data.errors.length ? `, ${data.errors.length} skipped` : "";
+    await refreshAfterChange(`${data.added.length} URL image(s) imported${skipped}`, data.errors && data.errors.length ? "info" : "success");
+  } finally {
+    setBusy(false);
+  }
 }
 
 async function movePage(id, action) {
   if (!ensureWritable()) return;
-  const data = await api(`/api/pages/${id}/move`, {
+  await api(`/api/pages/${id}/move`, {
     method: "PATCH",
     body: JSON.stringify({ action })
   });
-  renderCatalog(data.catalog);
-  setStatus(`Page moved ${action}`, "success");
+  await refreshAfterChange(`Page moved ${action}`);
 }
 
 async function reorderPages(ids) {
   if (!ensureWritable()) return;
-  const data = await api("/api/catalog/reorder", {
+  await api("/api/catalog/reorder", {
     method: "PATCH",
     body: JSON.stringify({ ids })
   });
-  renderCatalog(data.catalog);
-  setStatus("Page order updated", "success");
+  await refreshAfterChange("Page order updated");
 }
 
 async function updateLabel(id, label) {
   if (!ensureWritable()) return;
-  const data = await api(`/api/pages/${id}`, {
+  await api(`/api/pages/${id}`, {
     method: "PATCH",
     body: JSON.stringify({ label })
   });
-  renderCatalog(data.catalog);
-  setStatus("Page label saved", "success");
+  await refreshAfterChange("Page label saved");
 }
 
 async function replaceWithFile(id, file) {
@@ -766,29 +801,29 @@ async function replaceWithFile(id, file) {
   const formData = new FormData();
   formData.append("image", file);
   setStatus("Replacing image...");
-  const data = await api(`/api/pages/${id}/replace`, { method: "POST", body: formData });
-  renderCatalog(data.catalog);
-  setStatus("Image replaced and published", "success");
+  await api(`/api/pages/${id}/replace`, { method: "POST", body: formData });
+  await refreshAfterChange("Image replaced and published");
 }
 
 async function deletePage(id) {
   if (!ensureWritable()) return;
   const page = state.pages.find((item) => item.id === id);
   if (!confirm(`Delete page "${page ? page.label : id}"?`)) return;
-  const data = await api(`/api/pages/${id}`, { method: "DELETE" });
-  renderCatalog(data.catalog);
-  setStatus("Page deleted and published", "success");
+  await api(`/api/pages/${id}`, { method: "DELETE" });
+  await refreshAfterChange("Page deleted and published");
 }
 
 async function publish() {
   if (!ensureWritable()) return;
-  const data = await api("/api/catalog/publish", { method: "POST", body: JSON.stringify({}) });
-  renderCatalog(data.catalog);
-  setStatus("Live flipbook synced", "success");
+  await api("/api/catalog/publish", { method: "POST", body: JSON.stringify({}) });
+  await refreshAfterChange("Live flipbook synced");
 }
 
-document.getElementById("pick-images").addEventListener("click", () => imageInput.click());
-imageInput.addEventListener("change", () => uploadImages(imageInput.files).catch(showError));
+document.getElementById("pick-images").addEventListener("click", () => {
+  imageInput.value = "";
+  imageInput.click();
+});
+imageInput.addEventListener("change", () => uploadImages(Array.from(imageInput.files)).catch(showError));
 document.getElementById("preview-urls").addEventListener("click", previewUrls);
 document.getElementById("import-urls").addEventListener("click", () => importUrls().catch(showError));
 document.getElementById("publish-btn").addEventListener("click", () => publish().catch(showError));
@@ -812,7 +847,7 @@ const dropzone = document.getElementById("dropzone");
 });
 dropzone.addEventListener("drop", (event) => {
   if (!ensureWritable()) return;
-  uploadImages(event.dataTransfer.files).catch(showError);
+  uploadImages(Array.from(event.dataTransfer.files)).catch(showError);
 });
 
 pageGrid.addEventListener("click", (event) => {
@@ -824,7 +859,11 @@ pageGrid.addEventListener("click", (event) => {
   if (!button) return;
   const { action, id } = button.dataset;
   if (["up", "down", "first", "last"].includes(action)) movePage(id, action).catch(showError);
-  if (action === "replace-file") pageGrid.querySelector(`input[data-action="replace-file-input"][data-id="${id}"]`)?.click();
+  if (action === "replace-file") {
+    const input = pageGrid.querySelector(`input[data-action="replace-file-input"][data-id="${id}"]`);
+    if (input) input.value = "";
+    input?.click();
+  }
   if (action === "delete") deletePage(id).catch(showError);
 });
 
@@ -838,7 +877,11 @@ pageGrid.addEventListener("change", (event) => {
     updateLabel(target.dataset.id, target.value).catch(showError);
   }
   if (target.dataset.action === "replace-file-input" && target.files[0]) {
-    replaceWithFile(target.dataset.id, target.files[0]).catch(showError);
+    replaceWithFile(target.dataset.id, target.files[0])
+      .catch(showError)
+      .finally(() => {
+        target.value = "";
+      });
   }
 });
 
