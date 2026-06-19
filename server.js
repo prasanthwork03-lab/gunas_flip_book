@@ -8,7 +8,6 @@ const os = require("os");
 const path = require("path");
 const express = require("express");
 const multer = require("multer");
-const sharp = require("sharp");
 const { v2: cloudinary } = require("cloudinary");
 
 const ROOT = __dirname;
@@ -93,6 +92,12 @@ app.use(express.urlencoded({ extended: true }));
 let catalogCache = null;
 let catalogQueue = Promise.resolve();
 const eventClients = new Set();
+let sharpModule = null;
+
+function getSharp() {
+  if (!sharpModule) sharpModule = require("sharp");
+  return sharpModule;
+}
 
 function toWebPath(filePath) {
   const uploadRelativePath = path.relative(UPLOAD_DIR, filePath);
@@ -344,7 +349,7 @@ async function validateImageBuffer(buffer, hint = {}) {
   if (buffer.length > MAX_IMAGE_BYTES) {
     throw new Error(`Image is larger than ${process.env.MAX_IMAGE_MB || 40}MB`);
   }
-  const metadata = await sharp(buffer, { failOn: "none" }).metadata();
+  const metadata = await getSharp()(buffer, { failOn: "none" }).metadata();
   const format = metadata.format === "jpg" ? "jpeg" : metadata.format;
   if (!SUPPORTED_FORMATS.has(format)) {
     throw new Error(`Unsupported image format: ${metadata.format || hint.mime || "unknown"}`);
@@ -390,7 +395,7 @@ async function saveLocalImage(buffer, label, metadata) {
   const fileName = `${slugify(label)}-${Date.now()}-${crypto.randomBytes(3).toString("hex")}.${ext}`;
   const targetPath = path.join(targetDir, fileName);
 
-  let pipeline = sharp(buffer, { failOn: "none" })
+  let pipeline = getSharp()(buffer, { failOn: "none" })
     .rotate()
     .resize({
       width: IMAGE_MAX_WIDTH,
