@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 
 const childProcess = require("child_process");
 const crypto = require("crypto");
@@ -811,8 +811,20 @@ async function start() {
   return app;
 }
 
+let appPromise = null;
+
+function getApp() {
+  if (!appPromise) appPromise = start();
+  return appPromise;
+}
+
+async function handler(req, res) {
+  const readyApp = await getApp();
+  return readyApp(req, res);
+}
+
 if (require.main === module) {
-  start()
+  getApp()
     .then(() => {
       app.listen(PORT, () => {
         console.log(`Gunas Craft flipbook running at http://127.0.0.1:${PORT}`);
@@ -829,4 +841,5 @@ if (require.main === module) {
     });
 }
 
-module.exports = start();
+module.exports = handler;
+module.exports.appPromise = getApp();
