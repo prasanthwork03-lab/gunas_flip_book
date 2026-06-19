@@ -460,7 +460,7 @@
             <div class="coil" aria-hidden="true"></div>
             <div>
               <strong>Upload catalog images</strong>
-              <p class="hint">Drop or choose JPG, PNG, WEBP, or AVIF images. Maximum 40 catalog pages.</p>
+              <p class="hint">Drop or choose JPG, PNG, WEBP, or AVIF images. Maximum 40 catalog pages, 8 MB per image.</p>
             </div>
             <div class="actions">
               <button class="primary" id="pick-images" type="button">Choose Images</button>
@@ -513,6 +513,8 @@
 const state = {
   pages: [],
   maxPages: 40,
+  maxImageBytes: 8 * 1024 * 1024,
+  maxImageMb: 8,
   readOnly: false,
   busy: false,
   draggedId: null,
@@ -550,6 +552,13 @@ function showAdmin() {
 function setStatus(message, type = "info") {
   statusEl.textContent = message;
   statusEl.style.color = type === "error" ? "var(--danger)" : type === "success" ? "var(--success)" : "var(--muted)";
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes || 0);
+  if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  if (value >= 1024) return `${Math.ceil(value / 1024)} KB`;
+  return `${value} B`;
 }
 
 function setBusy(isBusy) {
@@ -593,7 +602,9 @@ async function api(path, options = {}) {
 
 async function checkLogin() {
   try {
-    await api("/api/admin/me", { method: "GET" });
+    const me = await api("/api/admin/me", { method: "GET" });
+    state.maxImageBytes = me.maxImageBytes || state.maxImageBytes;
+    state.maxImageMb = me.maxImageMb || state.maxImageMb;
     showAdmin();
     await fetchCatalog();
     startCatalogPolling();
@@ -634,6 +645,8 @@ async function logout() {
 function renderCatalog(catalog) {
   state.pages = catalog.pages || [];
   state.maxPages = catalog.maxPages || 40;
+  state.maxImageBytes = catalog.maxImageBytes || state.maxImageBytes;
+  state.maxImageMb = catalog.maxImageMb || state.maxImageMb;
   state.readOnly = Boolean(catalog.readOnly);
   pageCount.textContent = `${state.pages.length} / ${state.maxPages} pages | Updated ${catalog.updatedAt ? new Date(catalog.updatedAt).toLocaleString() : "now"}`;
   const full = state.pages.length >= state.maxPages;
@@ -721,6 +734,76 @@ async function refreshAfterChange(message, type = "success") {
   return catalog;
 }
 
+function validateSelectedImages(files) {
+  const supported = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
+  for (const file of files) {
+    if (!supported.has(file.type)) {
+      throw new Error(`Unsupported image type: ${file.name}`);
+    }
+    if (file.size > state.maxImageBytes) {
+      throw new Error(`${file.name} is ${formatBytes(file.size)}. Maximum per image is ${state.maxImageMb} MB.`);
+    }
+  }
+}
+
+async function runLimited(items, limit, worker) {
+  const results = [];
+  let nextIndex = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await worker(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+async function uploadFileToSupabaseSignedUrl(file, upload) {
+  const formData = new FormData();
+  formData.append("cacheControl", "31536000");
+  formData.append("", file);
+  const response = await fetch(upload.signedUrl, {
+    method: "PUT",
+    body: formData
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Upload failed for ${file.name}${text ? `: ${text}` : ""}`);
+  }
+  return {
+    objectPath: upload.objectPath,
+    originalName: upload.originalName,
+    contentType: upload.contentType,
+    size: upload.size,
+    format: upload.format,
+    label: upload.originalName.replace(/\.[^.]+$/, "")
+  };
+}
+
+async function directUploadImages(files) {
+  const request = {
+    files: files.map((file) => ({
+      originalName: file.name,
+      contentType: file.type,
+      size: file.size
+    }))
+  };
+  const { uploads } = await api("/api/images/direct-upload-urls", {
+    method: "POST",
+    body: JSON.stringify(request)
+  });
+  const completed = await runLimited(uploads.map((upload, index) => ({ upload, file: files[index] })), 4, async (item, index) => {
+    setStatus(`Uploading ${index + 1} of ${uploads.length}: ${item.file.name}`);
+    return uploadFileToSupabaseSignedUrl(item.file, item.upload);
+  });
+  return api("/api/images/direct-complete", {
+    method: "POST",
+    body: JSON.stringify({ uploads: completed })
+  });
+}
+
 async function uploadImages(files) {
   if (!ensureWritable()) return;
   const selectedFiles = Array.from(files || []);
@@ -729,12 +812,25 @@ async function uploadImages(files) {
     setStatus(`Maximum ${state.maxPages} pages only. Delete or replace a page before adding more.`, "error");
     return;
   }
-  const formData = new FormData();
-  selectedFiles.forEach((file) => formData.append("images", file));
-  setStatus(`Uploading ${selectedFiles.length} image(s)...`);
+  try {
+    validateSelectedImages(selectedFiles);
+  } catch (error) {
+    setStatus(error.message, "error");
+    imageInput.value = "";
+    return;
+  }
+  setStatus(`Preparing ${selectedFiles.length} image(s) for fast upload...`);
   setBusy(true);
   try {
-    const data = await api("/api/images/upload", { method: "POST", body: formData });
+    let data;
+    try {
+      data = await directUploadImages(selectedFiles);
+    } catch (error) {
+      const formData = new FormData();
+      selectedFiles.forEach((file) => formData.append("images", file));
+      setStatus(`Direct upload unavailable, using standard upload for ${selectedFiles.length} image(s)...`);
+      data = await api("/api/images/upload", { method: "POST", body: formData });
+    }
     setBusy(false);
     await refreshAfterChange(`${data.added.length} image(s) uploaded and published`);
   } finally {

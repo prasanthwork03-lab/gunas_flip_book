@@ -17,6 +17,7 @@ Production-ready flipbook catalog with a simple admin panel.
 - Move up, down, first and last
 - Live public flipbook sync
 - Maximum 40 catalog pages
+- Maximum 8 MB per image
 
 ## Production Storage
 
@@ -29,6 +30,7 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD=use-a-strong-password
 ADMIN_SESSION_SECRET=use-a-long-random-secret
 MAX_CATALOG_PAGES=40
+MAX_IMAGE_MB=8
 
 STORAGE_PROVIDER=supabase
 CATALOG_BACKEND=supabase

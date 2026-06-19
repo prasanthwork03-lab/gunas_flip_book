@@ -46,7 +46,8 @@ const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || "gunas-craft-catalog";
 const SUPABASE_FOLDER = (process.env.SUPABASE_FOLDER || "gunas-craft/catalog").replace(/^\/+|\/+$/g, "");
 const SUPABASE_MANIFEST_PATH = (process.env.SUPABASE_MANIFEST_PATH || `${SUPABASE_FOLDER}/catalog.json`).replace(/^\/+/g, "");
 const MAX_CATALOG_PAGES = Number(process.env.MAX_CATALOG_PAGES || 40);
-const MAX_IMAGE_BYTES = Number(process.env.MAX_IMAGE_MB || 40) * 1024 * 1024;
+const MAX_IMAGE_MB = Number(process.env.MAX_IMAGE_MB || 8);
+const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
 
 const SUPPORTED_FORMATS = new Set(["jpg", "jpeg", "png", "webp", "avif"]);
 const SUPPORTED_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/avif"]);
@@ -158,6 +159,15 @@ function contentTypeForFormat(format) {
   return `image/${format === "jpg" ? "jpeg" : format}`;
 }
 
+function formatFromContentType(contentType = "") {
+  const type = String(contentType).split(";")[0].trim().toLowerCase();
+  if (type === "image/jpeg") return "jpeg";
+  if (type === "image/png") return "png";
+  if (type === "image/webp") return "webp";
+  if (type === "image/avif") return "avif";
+  return null;
+}
+
 function toWebPath(filePath) {
   const uploadRelativePath = path.relative(UPLOAD_DIR, filePath);
   if (uploadRelativePath && !uploadRelativePath.startsWith("..") && !path.isAbsolute(uploadRelativePath)) {
@@ -173,6 +183,14 @@ function slugify(value) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 48) || "page";
+}
+
+function supabaseObjectPathForUpload(originalName = "catalog-page") {
+  const ext = path.extname(originalName).replace(".", "").toLowerCase();
+  const safeExt = ext === "jpg" ? "jpg" : SUPPORTED_FORMATS.has(ext) ? ext : "jpg";
+  const folder = new Date().toISOString().slice(0, 10);
+  const fileName = `${slugify(originalName)}-${Date.now()}-${crypto.randomBytes(6).toString("hex")}.${safeExt}`;
+  return `${SUPABASE_FOLDER}/${folder}/${fileName}`;
 }
 
 function pageId() {
@@ -315,6 +333,8 @@ function publicCatalog(catalog) {
     storageProvider: catalog.storageProvider,
     readOnly: vercelReadOnlyMode,
     maxPages: MAX_CATALOG_PAGES,
+    maxImageBytes: MAX_IMAGE_BYTES,
+    maxImageMb: MAX_IMAGE_MB,
     pages: catalog.pages
   };
 }
@@ -423,6 +443,63 @@ function requireAdmin(req, res, next) {
 function isSupportedByName(name) {
   const ext = path.extname(name || "").replace(".", "").toLowerCase();
   return SUPPORTED_FORMATS.has(ext);
+}
+
+function validateUploadDescriptor(file = {}) {
+  const originalName = String(file.originalName || file.name || "catalog-page").trim();
+  const contentType = String(file.contentType || file.type || "").split(";")[0].toLowerCase();
+  const size = Number(file.size || 0);
+  const format = formatFromContentType(contentType) || detectImageFormat(Buffer.alloc(0), { originalName });
+
+  if (!originalName) throw new Error("Image file name is required");
+  if (!isSupportedByName(originalName) && !SUPPORTED_MIME.has(contentType)) {
+    throw new Error(`Unsupported image format: ${originalName}`);
+  }
+  if (contentType && !SUPPORTED_MIME.has(contentType)) {
+    throw new Error(`Unsupported image type: ${contentType}`);
+  }
+  if (!Number.isFinite(size) || size <= 0) {
+    throw new Error(`Image size is required: ${originalName}`);
+  }
+  if (size > MAX_IMAGE_BYTES) {
+    throw new Error(`Image is larger than ${MAX_IMAGE_MB}MB: ${originalName}`);
+  }
+
+  return {
+    originalName,
+    contentType: contentType || contentTypeForFormat(format || "jpeg"),
+    size,
+    format: format || path.extname(originalName).replace(".", "").toLowerCase().replace("jpg", "jpeg")
+  };
+}
+
+function pageFromSupabaseObject(upload) {
+  const file = validateUploadDescriptor(upload);
+  const objectPath = String(upload.objectPath || upload.path || "").replace(/^\/+/g, "");
+  if (!objectPath || !objectPath.startsWith(`${SUPABASE_FOLDER}/`)) {
+    throw new Error("Invalid uploaded image path");
+  }
+  const { data } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(objectPath);
+  if (!data || !data.publicUrl) {
+    throw new Error("Supabase upload succeeded but no public URL was returned. Make the bucket public.");
+  }
+  const label = String(upload.label || file.originalName).replace(/\.[^.]+$/, "") || "Catalog page";
+  return {
+    id: pageId(),
+    src: data.publicUrl,
+    label,
+    source: "upload",
+    storageProvider: "supabase",
+    publicId: objectPath,
+    sourceUrl: null,
+    originalName: file.originalName,
+    width: null,
+    height: null,
+    format: file.format,
+    bytes: file.size,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
 }
 
 async function validateImageBuffer(buffer, hint = {}) {
@@ -769,7 +846,10 @@ app.get("/api/admin/me", requireAdmin, (req, res) => {
   res.json({
     ok: true,
     username: ADMIN_USERNAME,
-    maxPages: MAX_CATALOG_PAGES
+    maxPages: MAX_CATALOG_PAGES,
+    maxImageBytes: MAX_IMAGE_BYTES,
+    maxImageMb: MAX_IMAGE_MB,
+    directUploads: Boolean(supabaseEnabled)
   });
 });
 
@@ -797,6 +877,48 @@ app.post("/api/images/upload", requireAdmin, upload.array("images", MAX_CATALOG_
   if (!files.length) return res.status(400).json({ error: "No images uploaded" });
   assertCanAddPages(await loadCatalog(), files.length);
   const pages = await importFiles(files, "upload");
+  const { catalog } = await withCatalog((draft) => {
+    assertCanAddPages(draft, pages.length);
+    draft.pages.push(...pages);
+  });
+  res.json({ added: pages, catalog: publicCatalog(catalog) });
+}));
+
+app.post("/api/images/direct-upload-urls", requireAdmin, asyncHandler(async (req, res) => {
+  if (!supabaseEnabled) {
+    return res.status(400).json({ error: "Direct upload requires Supabase storage." });
+  }
+  const files = Array.isArray(req.body.files) ? req.body.files : [];
+  if (!files.length) return res.status(400).json({ error: "No images selected" });
+  assertCanAddPages(await loadCatalog(), files.length);
+
+  const uploads = [];
+  for (const item of files) {
+    const file = validateUploadDescriptor(item);
+    const objectPath = supabaseObjectPathForUpload(file.originalName);
+    const { data, error } = await supabase.storage.from(SUPABASE_BUCKET).createSignedUploadUrl(objectPath);
+    if (error) throw error;
+    uploads.push({
+      originalName: file.originalName,
+      contentType: file.contentType,
+      size: file.size,
+      format: file.format,
+      objectPath,
+      signedUrl: data.signedUrl,
+      token: data.token
+    });
+  }
+  res.json({ uploads, maxImageBytes: MAX_IMAGE_BYTES, maxImageMb: MAX_IMAGE_MB });
+}));
+
+app.post("/api/images/direct-complete", requireAdmin, asyncHandler(async (req, res) => {
+  if (!supabaseEnabled) {
+    return res.status(400).json({ error: "Direct upload requires Supabase storage." });
+  }
+  const uploads = Array.isArray(req.body.uploads) ? req.body.uploads : [];
+  if (!uploads.length) return res.status(400).json({ error: "No uploaded images to publish" });
+  assertCanAddPages(await loadCatalog(), uploads.length);
+  const pages = uploads.map(pageFromSupabaseObject);
   const { catalog } = await withCatalog((draft) => {
     assertCanAddPages(draft, pages.length);
     draft.pages.push(...pages);
